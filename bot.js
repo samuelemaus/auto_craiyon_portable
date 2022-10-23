@@ -1,13 +1,16 @@
 require('dotenv').config();
 const Discord = require("discord.js");
 const fs = require('fs');
-const axios = require('axios'); z
+const axios = require('axios');
 const mergeImg = require('merge-img');
 const Jimp = require('jimp');
+const isCraiyonChannel = require('./channel-id-manager').isCraiyonChannel;
+const addNewCraiyonChannel = require('./channel-id-manager').addNewCraiyonChannel;
 
 const CRAIYON_URL = 'https://backend.craiyon.com/generate';
 
-const CHANNEL_ID_SET = new Set();
+const SET_CHANNEL_CMD = 'here';
+
 
 function getPayload(promptText) {
   return {
@@ -32,9 +35,6 @@ function isSelf(msg) {
   return msg.author.id === client.user.id;
 }
 
-function isCraiyonChannel(msg) {
-  return CHANNEL_ID_SET.has(msg.channelId)
-}
 
 function isSelfTagged(msg) {
   if (msg.mentions) {
@@ -42,9 +42,6 @@ function isSelfTagged(msg) {
   }
 }
 
-function doGenerate(msg) {
-  return isCraiyonChannel(msg) && !isSelf(msg) && msg.content && isSelfTagged(msg) && !msg.content.includes('/ignore')
-}
 
 async function getCraiyonResponse(prompt) {
 
@@ -216,14 +213,29 @@ client.on("ready", () => {
 
 client.on("messageCreate", async msg => {
   try {
-    if (doGenerate(msg)) {
-      respondToMessageWithCraiyonGeneration(msg);
+
+    if (!isSelf(msg)) {
+      if (isSelfTagged(msg)) {
+        if (isCraiyonChannel(msg)) {
+          respondToMessageWithCraiyonGeneration(msg);
+        }
+        else {
+          const processed = getProcessedMessageContent(msg);
+          if(processed.toLowerCase() == SET_CHANNEL_CMD){
+            addNewCraiyonChannel(msg.channel);
+            msg.reply('All set - if you tag me in this channel I will make an image from your message.');
+          }
+          else{
+            msg.reply(`If you want me to generate images in this channel - tag me in a message and type \"${SET_CHANNEL_CMD}\"`);
+          }
+        }
+      }
     }
   }
   catch (error) {
     console.log(error);
   }
-})
+});
 
 // client.on('messageReactionAdd', async (reaction, user) => {
 //   console.log(`got reaction:  ${reaction.emoji} from user: ${user.username}`);
