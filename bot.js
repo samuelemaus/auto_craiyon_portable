@@ -6,6 +6,8 @@ const mergeImg = require('merge-img');
 const Jimp = require('jimp');
 const isCraiyonChannel = require('./channel-id-manager').isCraiyonChannel;
 const addNewCraiyonChannel = require('./channel-id-manager').addNewCraiyonChannel;
+const sharp = require('sharp');
+
 
 const CRAIYON_URL = 'https://backend.craiyon.com/generate';
 
@@ -89,7 +91,8 @@ async function handleResponseFromCraiyon(prompt, response) {
     let image = images[i];
     image = image.split('\n').join('');
     const imageBuffer = Buffer.from(image, "base64");
-    buffers.push(imageBuffer);
+    const processedBuffer = await sharp(imageBuffer).jpeg().toBuffer();
+    buffers.push(processedBuffer);
   }
 
   const set1 = [
