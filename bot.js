@@ -7,7 +7,22 @@ const Jimp = require('jimp');
 const isCraiyonChannel = require('./channel-id-manager').isCraiyonChannel;
 const addNewCraiyonChannel = require('./channel-id-manager').addNewCraiyonChannel;
 const sharp = require('sharp');
+const winston = require('winston');
+require('winston-daily-rotate-file');
 
+const { combine, timestamp, json } = winston.format;
+
+const fileRotateTransport = new winston.transports.DailyRotateFile({
+  filename: 'info-%DATE%.log',
+  datePattern: 'YYYY-MM-DD',
+  maxFiles: '7d',
+});
+
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: combine(timestamp(), json()),
+  transports: [fileRotateTransport],
+});
 
 const CRAIYON_URL = 'https://backend.craiyon.com/generate';
 
@@ -26,7 +41,7 @@ function getImgBuffer(img1) {
 
   img1.getBuffer(Jimp.MIME_JPEG, (err, buffer) => {
     if (err) {
-      console.log(err);
+      logger.info(err);
     }
     outputBuffer = buffer;
   });
@@ -50,26 +65,26 @@ async function getCraiyonResponse(prompt) {
   let result;
   let attempts = 0;
 
-  console.log(`prompt ${prompt}`);
+  logger.info(`prompt ${prompt}`);
 
   while (attempts < 3 && !result) {
     try {
-      console.log('awaiting response from craiyon');
+      logger.info('awaiting response from craiyon');
       attempts += 1;
-      console.log(`attempt #${attempts}`);
+      logger.info(`attempt #${attempts}`);
       await axios.post(CRAIYON_URL, getPayload(prompt)).then((res) => {
-        console.log(`got response: ${res.status}`);
+        logger.info(`got response: ${res.status}`);
         if (res && res.data) {
           result = res.data;
         }
       }).catch((error) => {
-        console.log(`got error on attempt #${attempts}`);
-        console.log(error);
+        logger.info(`got error on attempt #${attempts}`);
+        logger.error(error);
       });
 
     }
     catch (error) {
-      console.log(error);
+      logger.error(error);
     }
   }
 
@@ -133,7 +148,7 @@ async function handleResponseFromCraiyon(prompt, response) {
 
   const finalBuffer = getImgBuffer(final);
   return finalBuffer;
-  // console.log(`writing file to ${outputFileName}`);
+  // logger.info(`writing file to ${outputFileName}`);
   // fs.writeFileSync(outputFileName, finalBuffer);
 
   // return outputFileName;
@@ -185,17 +200,17 @@ async function sendCraiyonGeneration(content, channel, captionMessage) {
   channel.send({
     embeds: [embed],
     files: [attachment]
-  }).catch((error) => {
-    console.log(error);
+  }).then(() => {logger.info(`sent image to channel with id ${channel.id}`)}).catch((error) => {
+    logger.error(error);
   });
 }
 
 async function respondToMessageWithCraiyonGeneration(msg) {
   const processedContent = getProcessedMessageContent(msg);
-  console.log('executing request on: ' + processedContent);
+  logger.info('executing request on: ' + processedContent);
   msg.reply('workin on it - gimme a sec')
   sendCraiyonGeneration(processedContent, msg.channel, `\"${processedContent}\"`).catch((error) => {
-    console.log(error);
+    logger.error(error);
   });
 }
 
@@ -211,7 +226,7 @@ const client = new Discord.Client({
 });
 
 client.on("ready", () => {
-  console.log(`Logged in as ${client.user.tag}!`);
+  logger.info(`Logged in as ${client.user.tag}!`);
 });
 
 client.on("messageCreate", async msg => {
@@ -236,12 +251,12 @@ client.on("messageCreate", async msg => {
     }
   }
   catch (error) {
-    console.log(error);
+    logger.error(error);
   }
 });
 
 // client.on('messageReactionAdd', async (reaction, user) => {
-//   console.log(`got reaction:  ${reaction.emoji} from user: ${user.username}`);
+//   logger.info(`got reaction:  ${reaction.emoji} from user: ${user.username}`);
 
 // });
 
